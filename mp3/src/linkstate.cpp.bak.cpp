@@ -15,13 +15,12 @@
 using namespace std;
 
 void parse_input(char *topofile, char *messagefile, char *changefile);
-void dijkstra(int source);
+void dijkstra(int nodeID);
 void write_topology_entry(int nodeID);
 void write_msg();
 void update(string& s);
 void run();
 
-set<int> all_nodes;
 set<int> nodes;                                 // nodeID
 map<int, map<int, int>> costs;                  // c(x, y)
 map<int, map<int, int>> shortest_path_costs;    // D(v) for node x
@@ -29,8 +28,6 @@ map<int, map<int, list<int>>> hop_sequences;    // x to y, list<int> of hops wit
 
 list<string> msgs;
 list<string> changes;
-
-set<int> removed_nodes;
 
 void parse_input(char *topofile, char *messagefile, char *changefile)
 {
@@ -62,90 +59,104 @@ void parse_input(char *topofile, char *messagefile, char *changefile)
         costs[node2][node1] = cost;
     }
     infile.close();
-    all_nodes = nodes;
 
     return;
 }
 
 
-void dijkstra(int source)
+void dijkstra(int nodeID)
 {   
     // init
-    set<int>        Q;
-    map<int, int>   dist, prev;
-    queue<int>      path;
+    set<int> N_prime;
+    N_prime.insert(nodeID);
 
-    for (int node: nodes)
-    {
-        dist[node] = INFINITY;
-        prev[node] = UNDEFINED;
-        Q.insert(node);
-    }
-    dist[source] = 0;
+    queue<int> __node_path;
 
-    while (!Q.empty())
+    map<int, int> p, D;
+    for (int node: nodes) 
     {
-        int min_dist=INFINITY, min_node=INFINITY;
-        for (int q: Q)
+        if (costs[nodeID].count(node) == 1)
         {
-            if (dist[q] < min_dist)
-            {
-                min_dist = dist[q];
-                min_node = q;
-            }
-            else if (dist[q] == min_dist)
-            {
-                if (min_node > q)
-                    min_node = q;
-            }
+            D[node] = costs[nodeID][node];
+            p[node] = nodeID;
         }
-
-        Q.erase(min_node);
-        path.push(min_node);
-
-        for (int q: Q)
+        else if (node == nodeID)
         {
-            if (costs[min_node].count(q) == 1)
+            D[node] = 0;
+            p[node] = INT_MAX;
+        }
+        else
+        {
+            D[node] = INT_MAX;
+            p[node] = INT_MAX;
+        }
+    }
+    // start to loop
+    while (N_prime.size() < nodes.size())
+    {
+        int __min_dist=INT_MAX, __min_node=INT_MAX;
+        for (int w: nodes) 
+        {
+            if (N_prime.count(w) == 0)
             {
-                int alt = dist[min_node] + costs[min_node][q];
-                if (alt < dist[q])
+                if (D[w] < __min_dist)
                 {
-                    dist[q] = alt;
-                    prev[q] = min_node;
+                    __min_dist = D[w];
+                    __min_node = w;
                 }
-                else if (alt == dist[q])
+                else if (D[w] == __min_dist)
                 {
-                    if (min_node < prev[q])
-                        prev[q] = min_node;
+                    if (__min_node > w)
+                        __min_node = w;
                 }
             }
         }
+
+        __node_path.push(__min_node);
+        N_prime.insert(__min_node);
+        for (int v: nodes) 
+        {
+            if (costs[__min_node].count(v) == 1)
+            {
+                if (N_prime.count(v) == 0)
+                {
+                    if (D[v] > D[__min_node]+costs[__min_node][v])
+                    {
+                        D[v] = D[__min_node]+costs[__min_node][v];
+                        p[v] = __min_node;
+                    }
+                    else if (D[v] == D[__min_node]+costs[__min_node][v])
+                    {
+                        if (__min_node < p[v])
+                            p[v] = __min_node;
+                    }
+                }
+            }
+        }
     }
 
-    for (auto& i: dist)
-        shortest_path_costs[source][i.first] = i.second;
-
-    // backtracking
-    while (!path.empty())
+    for (auto &t: D)
+        shortest_path_costs[nodeID][t.first] = t.second;
+    
+    hop_sequences[nodeID][nodeID].push_front(nodeID);
+    while (!__node_path.empty())
     {
-        int dest = path.front();
-        int u = dest;
-        if (u==source)
+        int __node = __node_path.front();
+        hop_sequences[nodeID][__node].push_front(__node);
+        int __temp = p[__node];
+        while (__temp != nodeID)
         {
-            hop_sequences[source][dest].push_front(source);
-            path.pop();
-            continue;
-        }
-        else if (prev[u]!=UNDEFINED)
-        {
-            while (u!=UNDEFINED)
+            cout << __temp << endl;
+            hop_sequences[nodeID][__node].push_front(__temp);
+            __temp = p[__temp];
+            if (__temp == INT_MAX || __temp == 0)
             {
-                hop_sequences[source][dest].push_front(u);
-                u = prev[u];
+                cout << "reach here" << endl;
+                hop_sequences[nodeID][__node].clear();
+                break;
             }
-            hop_sequences[source][dest].pop_front();
-            path.pop();
         }
+        __node_path.pop();
     }
 
     return;
@@ -162,6 +173,7 @@ void write_topology_entry(int nodeID)
         int dest = i.first;
         int next_hop = i.second.front();
         int cost = shortest_path_costs[nodeID][dest];
+        // if (next_hop != INT_MAX && cost != INT_MAX)
         outfile << dest << " " << next_hop << " " << cost << endl;
     }
     // outfile << endl;
@@ -184,7 +196,7 @@ void write_msg()
         string msg(s, s.find(to_string(dest))+2);
 
         if (shortest_path_costs[src][dest] == INT_MAX || hop_sequences[src][dest].size() == 0)
-            outfile << "from " << src << " to " << dest << " cost infinite hops unreachable message " << msg << endl;
+            outfile << "from " << src << " to " << dest << " cost infinite hops unreachable message" << msg << endl;
         else
         {
             list<int> __sequence = hop_sequences[src][dest];
@@ -213,33 +225,16 @@ void update(string& s)
     if (cost == BROKEN)
     {
         costs[node1].erase(node2);
+        if (costs.count(node1) <= 0)
+            nodes.erase(node1);
         costs[node2].erase(node1);
-
-        set<int> new_nodes;
-        for (auto& i: costs)
-        {
-            for (auto& j: i.second)
-            {
-                new_nodes.insert(i.first);
-                new_nodes.insert(j.first);
-            }
-        }
-        for (int i: nodes)
-            if (new_nodes.count(i) == 0)
-                removed_nodes.insert(i);
-
-        nodes = new_nodes;
+        if (costs.count(node2) <= 0)
+            nodes.erase(node2);
     }
     else
     {
-        nodes.insert(node1);
-        nodes.insert(node2);
         costs[node1][node2] = cost;
         costs[node2][node1] = cost;       
-        if (removed_nodes.count(node1) == 1)
-            removed_nodes.erase(node1);
-        if (removed_nodes.count(node2) == 1)
-            removed_nodes.erase(node2);
     }
 
     return;
@@ -249,24 +244,12 @@ void run()
 {
     shortest_path_costs.clear();
     hop_sequences.clear();
-
-    for (int i: all_nodes)
+    for (int i: nodes)
     {
-        if (nodes.count(i) == 1)
-        {   
-            dijkstra(i);
-            write_topology_entry(i);
-        }
-        else
-        {
-            ofstream outfile;
-            outfile.open("output.txt", ios::app);
-            outfile << i << " " << i << " " << 0 << endl;
-            outfile.close();
-        }
+        dijkstra(i);
+        write_topology_entry(i);
     }
     write_msg();
-
     return;
 }
 

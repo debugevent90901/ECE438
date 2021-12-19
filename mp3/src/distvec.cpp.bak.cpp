@@ -32,9 +32,6 @@ map<int, map<int, list<int>>> hop_sequences;
 list<string> msgs;
 list<string> changes;
 
-set<int> all_nodes;
-set<int> removed_nodes;
-
 
 void init_dv_algorithm()
 {
@@ -91,11 +88,6 @@ void run_dv_algorithm()
                             __next_hop = k;
                             __min_cost = __tmp;
                         }
-                        else if (__tmp == __min_cost)
-                        {
-                            if (k < __next_hop)
-                                __next_hop = k;
-                        }
                     }
                 }
                 hop_sequences[i][j].clear();
@@ -109,7 +101,7 @@ void run_dv_algorithm()
                     shortest_path_costs[i][j] = 0;
                 }
 
-                if (__next_hop == __curr_next_hop && __min_cost == __curr_min_cost)
+                if (__next_hop == __curr_next_hop || __min_cost == __curr_min_cost)
                     is_round_converged &= true;
                 else   
                     is_round_converged &= false;
@@ -162,7 +154,6 @@ void parse_input(char *topofile, char *messagefile, char *changefile)
         costs[node2][node1] = cost;
     }
     infile.close();
-    all_nodes = nodes;
 
     return;
 }
@@ -201,7 +192,7 @@ void write_msg()
         __temp >> src; __temp >> dest;
         string msg(s, s.find(to_string(dest))+2);
 
-        if (shortest_path_costs[src][dest] == INT_MAX || hop_sequences[src][dest].size() == 0)
+        if (shortest_path_costs[src][dest] == INT_MAX)
             outfile << "from " << src << " to " << dest << " cost infinite hops unreachable message " << msg << endl;
         else
         {
@@ -231,33 +222,16 @@ void update(string& s)
     if (cost == BROKEN)
     {
         costs[node1].erase(node2);
+        if (costs.count(node1) <= 0)
+            nodes.erase(node1);
         costs[node2].erase(node1);
-
-        set<int> new_nodes;
-        for (auto& i: costs)
-        {
-            for (auto& j: i.second)
-            {
-                new_nodes.insert(i.first);
-                new_nodes.insert(j.first);
-            }
-        }
-        for (int i: nodes)
-            if (new_nodes.count(i) == 0)
-                removed_nodes.insert(i);
-
-        nodes = new_nodes;
+        if (costs.count(node2) <= 0)
+            nodes.erase(node2);
     }
     else
     {
-        nodes.insert(node1);
-        nodes.insert(node2);
         costs[node1][node2] = cost;
         costs[node2][node1] = cost;       
-        if (removed_nodes.count(node1) == 1)
-            removed_nodes.erase(node1);
-        if (removed_nodes.count(node2) == 1)
-            removed_nodes.erase(node2);
     }
     return;
 }
@@ -269,18 +243,8 @@ void run()
     hop_sequences.clear();
     init_dv_algorithm();
     run_dv_algorithm();
-    for (int i: all_nodes)
-    {
-        if (nodes.count(i) == 1) 
-            write_topology_entry(i);
-        else
-        {
-            ofstream outfile;
-            outfile.open("output.txt", ios::app);
-            outfile << i << " " << i << " " << 0 << endl;
-            outfile.close();
-        }
-    }
+    for (int i: nodes)
+        write_topology_entry(i);
     write_msg();
     return;
 }
