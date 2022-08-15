@@ -3,7 +3,7 @@
 
 This project is a simulation of TCP protocol using C++ UDP sockets, in order to realize reliable data transfer even when there is delay or packet loss in the network.
 
-The project is based on MP2 of [ECE/CS 438](https://courses.grainger.illinois.edu/cs438/fa2021/) @ UIUC. It is implemented by one person, even if the course allows to complete it in a team of two.
+The project is based on MP2 of [ECE/CS 438](https://courses.grainger.illinois.edu/cs438/fa2021/) @ UIUC, which is implemented in a team of two.
 
 #### How to run
 
