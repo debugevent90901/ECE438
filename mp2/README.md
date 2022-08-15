@@ -1,4 +1,4 @@
-# TCP based on UDP
+# Simulated TCP protocol based on UDP
 #### Overview
 
 This project is a simulation of TCP protocol using C++ UDP sockets, in order to realize reliable data transfer even when there is delay or packet loss in the network.
